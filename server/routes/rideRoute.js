@@ -41,16 +41,8 @@ router.post(
                 status: "Requested",
             });
 
-            // Emit the ride to all connected drivers
-            const io = req.app.get("socketio"); // Access the Socket.IO instance
-            io.emit("newRide", {
-                rideId: ride._id,
-                pickUpLocation: ride.pickUpLocation,
-                dropOffLocation: ride.dropOffLocation,
-                fare: ride.fare,
-                carType: ride.carType,
-                userId: ride.user, // Optional: Include user details if necessary
-            });
+     
+   
 
             res.status(201).json({
                 message: "Ride created successfully",
@@ -65,6 +57,35 @@ router.post(
     }
 );
 
+//******Get Ride by ID*************************************************************************************************************************************************************************************/
+
+router.get(
+    "/rideGetForUser/:id",
+    authenticateToken,
+    authorizeUser, // Ensure the user is authorized to fetch this ride
+    async (req, res) => {
+        try {
+            const rideId = req.params.id;
+
+            // Find the ride by ID
+            const ride = await rideModel.findById(rideId);
+
+            if (!ride) {
+                return res.status(404).json({ message: "Ride not found" });
+            }
+
+            res.status(200).json({
+                message: "Ride fetched successfully",
+                response: ride,
+            });
+        } catch (error) {
+            res.status(400).json({
+                message: "Error fetching ride",
+                error: error.message,
+            });
+        }
+    }
+);
 
 //******Getting your rides to drivers************************************************************************************************************************************************************************************ */
 
@@ -414,7 +435,7 @@ router.put(
             }
 
             // Find the ride by ID and populate driver and car details
-            const ride = await rideModel.findById(rideId)
+            const ride = await rideModel.findById(rideId);
 
             if (!ride) {
                 return res.status(404).json({
@@ -422,20 +443,18 @@ router.put(
                 });
             }
 
-if (ride.status !== "In Progress" && ride.status !== "Completed") {
-    return res.status(400).json({
-        message: "This ride is neither in progress nor completed",
-    });
-}
+            if (ride.status !== "In Progress" && ride.status !== "Completed") {
+                return res.status(400).json({
+                    message: "This ride is neither in progress nor completed",
+                });
+            }
 
-
-ride.status="Completed"
-ride.paymentStatus="Paid"
-await ride.save()
+            ride.status = "Completed";
+            ride.paymentStatus = "Paid";
+            await ride.save();
 
             res.status(200).json({
                 message: "Ride completed successfully",
-  
             });
         } catch (error) {
             res.status(400).json({
