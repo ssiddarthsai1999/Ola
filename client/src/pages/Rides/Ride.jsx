@@ -3,8 +3,10 @@ import {
     GoogleMap,
     Autocomplete,
     DirectionsRenderer,
+    Marker,
     useJsApiLoader,
 } from "@react-google-maps/api";
+import axios from "axios";
 
 function Ride() {
     const libraries = ["places"];
@@ -16,9 +18,13 @@ function Ride() {
     const [map, setMap] = useState(null);
     const [directionsResponse, setDirectionsResponse] = useState(null);
     const [distance, setDistance] = useState("");
+    const [selectedLocation, setSelectedLocation] = useState(null);
     const [duration, setDuration] = useState("");
-    const [vehicleType, setVehicleType] = useState("Mini");
-    const [fare, setFare] = useState(null);
+    const [carTypes, setCarTypes] = useState([]);
+        const [originCoordinates, setOriginCoordinates] = useState(null);
+        const [destinationCoordinates, setDestinationCoordinates] =
+            useState(null);
+    const [fares, setFares] = useState([]);
     const [currentLocation, setCurrentLocation] = useState({
         lat: 20.5937, // Default: India's latitude
         lng: 78.9629, // Default: India's longitude
@@ -27,20 +33,32 @@ function Ride() {
     const originRef = useRef(null);
     const destinationRef = useRef(null);
 
-    // Base prices for each car type
-    const basePrices = {
-        Mini: 40, // Base price per km
-        Compact: 60,
-        Luxury: 100,
-    };
+    // Fetch available car types on load
+    useEffect(() => {
+        const fetchCarTypes = async () => {
+            const token = document.cookie
+                .split("; ")
+                .find((row) => row.startsWith("token="))
+                ?.split("=")[1];
 
-    const calculateFare = (distanceInKm, durationInMinutes, carType) => {
-        const basePricePerKm = basePrices[carType];
-        const ratePerMinute = 2; // Example: Rs. 2 per minute
-        return (
-            distanceInKm * basePricePerKm + durationInMinutes * ratePerMinute
-        );
-    };
+            try {
+                const response = await axios.get(
+                    `${import.meta.env.VITE_LOCAL_URL}/carType/carTypeGetAll`,
+                    {
+                        withCredentials: true,
+                        headers: {
+                            Authorization: `Bearer ${token}`, // Send token in headers
+                        },
+                    }
+                );
+                setCarTypes(response.data.response);
+            } catch (error) {
+                console.error("Error fetching car types:", error);
+            }
+        };
+
+        fetchCarTypes();
+    }, []);
 
     // Fetch user's current location
     useEffect(() => {
@@ -66,15 +84,24 @@ function Ride() {
         }
     }, [isLoaded]);
 
-    // Calculate route based on inputs and vehicle type
-    const calculateRoute = async () => {
-        if (!originRef.current || !destinationRef.current) {
-            alert("Please select both origin and destination.");
-            return;
-        }
+    const calculateFares = (distanceInKm, durationInMinutes) => {
+        return carTypes.map((car) => ({
+            ...car,
+            fare:
+                distanceInKm * car.basePricePerKm +
+                durationInMinutes * car.basePricePerMin,
+        }));
+    };
 
-        const origin = originRef.current.getPlace().formatted_address;
-        const destination = destinationRef.current.getPlace().formatted_address;
+    // Automatically calculate route when both locations are entered
+    const calculateRoute = () => {
+        if (!originRef.current || !destinationRef.current) return;
+
+        const origin = originRef.current.getPlace()?.formatted_address;
+        const destination =
+            destinationRef.current.getPlace()?.formatted_address;
+
+        if (!origin || !destination) return;
 
         const directionsService = new window.google.maps.DirectionsService();
         directionsService.route(
@@ -87,20 +114,28 @@ function Ride() {
             (result, status) => {
                 if (status === "OK" && result) {
                     setDirectionsResponse(result);
+
                     const route = result.routes[0].legs[0];
-                    const distanceInKm = parseFloat(route.distance.text); // e.g., "12.5 km"
+                    // Remove commas and units before parsing
+                    const distanceInKm = parseFloat(
+                        route.distance.text
+                            .replace(/,/g, "")
+                            .replace("km", "")
+                            .trim()
+                    );
                     const durationInMinutes = parseInt(
-                        route.duration.text.split(" ")[0]
-                    ); // e.g., "25 mins"
+                        route.duration.text.replace("mins", "").trim()
+                    );
+
                     setDistance(route.distance.text);
                     setDuration(route.duration.text);
 
-                    const calculatedFare = calculateFare(
+                    // Calculate fares for all car types
+                    const calculatedFares = calculateFares(
                         distanceInKm,
-                        durationInMinutes,
-                        vehicleType
+                        durationInMinutes
                     );
-                    setFare(calculatedFare);
+                    setFares(calculatedFares);
                 } else {
                     console.error("Error fetching directions", result);
                 }
@@ -109,7 +144,6 @@ function Ride() {
     };
 
     if (!isLoaded) return <div>Loading...</div>;
-    //adadadawd
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100">
@@ -118,11 +152,39 @@ function Ride() {
                     center={currentLocation}
                     zoom={10}
                     mapContainerStyle={{ width: "100%", height: "100%" }}
+                    onClick={(e) =>
+                        setSelectedLocation({
+                            lat: e.latLng.lat(),
+                            lng: e.latLng.lng(),
+                        })
+                    }
                     onLoad={(map) => setMap(map)}
                 >
-                    {/* Render the directions on the map */}
                     {directionsResponse && (
                         <DirectionsRenderer directions={directionsResponse} />
+                    )}
+                    {/* Custom Marker for Origin */}
+                    {originCoordinates && (
+                        <Marker
+                            position={originCoordinates}
+                            icon={{
+                                url: "https://maps.google.com/mapfiles/ms/icons/green-dot.png", // Custom icon URL for origin
+                                scaledSize: new window.google.maps.Size(40, 40),
+                            }}
+                            title="Origin"
+                        />
+                    )}
+
+                    {/* Custom Marker for Destination */}
+                    {destinationCoordinates && (
+                        <Marker
+                            position={destinationCoordinates}
+                            icon={{
+                                url: "https://maps.google.com/mapfiles/ms/icons/red-dot.png", // Custom icon URL for destination
+                                scaledSize: new window.google.maps.Size(40, 40),
+                            }}
+                            title="Destination"
+                        />
                     )}
                 </GoogleMap>
             </div>
@@ -139,11 +201,12 @@ function Ride() {
                     </label>
                     <Autocomplete
                         options={{
-                            componentRestrictions: { country: "in" }, // Restrict to India
+                            componentRestrictions: { country: "in" },
                         }}
                         onLoad={(autocomplete) =>
                             (originRef.current = autocomplete)
                         }
+                        onPlaceChanged={calculateRoute}
                     >
                         <input
                             type="text"
@@ -162,11 +225,12 @@ function Ride() {
                     </label>
                     <Autocomplete
                         options={{
-                            componentRestrictions: { country: "in" }, // Restrict to India
+                            componentRestrictions: { country: "in" },
                         }}
                         onLoad={(autocomplete) =>
                             (destinationRef.current = autocomplete)
                         }
+                        onPlaceChanged={calculateRoute}
                     >
                         <input
                             type="text"
@@ -176,30 +240,6 @@ function Ride() {
                         />
                     </Autocomplete>
                 </div>
-                <div className="mt-4">
-                    <label
-                        htmlFor="vehicleType"
-                        className="block text-sm font-medium text-gray-700"
-                    >
-                        Select Vehicle Type
-                    </label>
-                    <select
-                        id="vehicleType"
-                        value={vehicleType}
-                        onChange={(e) => setVehicleType(e.target.value)}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    >
-                        <option value="Mini">Mini</option>
-                        <option value="Compact">Compact</option>
-                        <option value="Luxury">Luxury</option>
-                    </select>
-                </div>
-                <button
-                    onClick={calculateRoute}
-                    className="w-full py-2 px-4 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                    Calculate Route
-                </button>
                 {distance && duration && (
                     <div className="text-center mt-4">
                         <p className="text-lg">
@@ -210,9 +250,25 @@ function Ride() {
                             Duration:{" "}
                             <span className="font-bold">{duration}</span>
                         </p>
-                        <p className="text-lg">
-                            Fare: <span className="font-bold">₹{fare}</span>
-                        </p>
+                        <div className="mt-4">
+                            <h2 className="text-lg font-bold">
+                                Choose a Vehicle
+                            </h2>
+                            {fares.map((car) => (
+                                <div
+                                    key={car._id}
+                                    className="flex items-center justify-between mt-2"
+                                >
+                                    <img
+                                        src={car.image}
+                                        alt={car.comfort}
+                                        className="w-12 h-12 rounded-md"
+                                    />
+                                    <span>{car.comfort}</span>
+                                    <span>₹{car.fare.toFixed(0)}</span>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>

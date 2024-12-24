@@ -12,7 +12,7 @@ const driverRoute = require("./routes/driverRoute.js");
 const carRoute = require("./routes/carRoute.js");
 const yourCarRoute = require("./routes/yourCarRoute.js");
 const rideRoute = require("./routes/rideRoute.js");
-
+const carTypeRoute = require("./routes/carTypeRoute.js");
 dotenv.config();
 
 const app = express();
@@ -59,3 +59,4 @@ app.use("/driver", driverRoute);
 app.use("/car", carRoute);
 app.use("/yourCar", yourCarRoute);
 app.use("/ride", rideRoute);
+app.use("/carType", carTypeRoute);

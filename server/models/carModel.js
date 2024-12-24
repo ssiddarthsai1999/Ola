@@ -3,11 +3,11 @@ const mongoose = require("mongoose");
 const carSchema = new mongoose.Schema({
     make: { type: String, required: true }, // Car manufacturer, e.g., Toyota
     model: { type: String, required: true }, // Car model, e.g., Corolla
-comfort:  {
+    comfort: {
         type: String,
         enum: ["Mini", "Compact", "Luxury"],
         required: true,
-    }, 
+    },
     type: {
         type: String,
         enum: ["Sedan", "SUV", "Hatchback", "Truck"],
@@ -20,7 +20,13 @@ comfort:  {
             image: { type: String, required: true }, // URL of the car's image in this color
         },
     ],
+    basePricePerKm: {
+        type: Number,
+        required: true,
+    }, // Base price per kilometer based on comfort level
 });
+
 carSchema.index({ make: 1, model: 1 }, { unique: true });
+
 const carModel = mongoose.model("Car", carSchema);
 module.exports = carModel;

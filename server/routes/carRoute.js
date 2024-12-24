@@ -4,6 +4,7 @@ const bcrypt = require("bcrypt");
 const carModel = require("../models/carModel");
 const authenticateToken = require("../middlewares/authenticateToken");
 const authorizeSuperAdmin = require("../middlewares/authorizeSuperAdmin");
+const authorizeUser = require("../middlewares/authorizeUser");
 const router = express.Router();
 
 //****************************************************************Routes start from here************************************************************************************************************************** */
